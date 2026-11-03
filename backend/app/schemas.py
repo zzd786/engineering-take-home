@@ -63,6 +63,14 @@ class ShareOut(BaseModel):
     revoked_at: datetime | None
 
 
+# Shows the patient who read their diary, when, and which entries were returned.
+class AccessOut(BaseModel):
+    clinician_id: int
+    clinician_name: str
+    accessed_at: datetime
+    entry_ids: list[int]
+
+
 # Keeps /me limited to the account role, ID and name expected by older apps.
 class Me(BaseModel):
     role: str

@@ -19,6 +19,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+psycopg://diary:diary@db:5432/diary
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
     volumes:
       - ./backend:/srv
     ports:

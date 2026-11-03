@@ -7,6 +7,7 @@ REQUESTS = Counter(
     "HTTP requests by route template and status.",
     ["method", "route", "status"],
 )
+AUDIT_FAILURES = Counter("diary_audit_write_failures_total", "Failed diary access record writes.")
 APP_EVENTS = Counter("app_events_total", "Product events sent by the app.", ["event"])
 LATENCY = Histogram(
     "http_request_duration_seconds", "HTTP request duration by route template.", ["method", "route"]

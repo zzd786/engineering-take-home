@@ -5,18 +5,29 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.auth import User, current_patient, current_user
+from app.access import read_diary
+from app.auth import User, current_clinician, current_patient, current_user
 from app.consent import CONSENT_VERSION, consent_wording
 from app.db import get_db
 from app.metrics import APP_EVENTS
-from app.models import Clinician, DiaryEntry, DiaryShare, Patient
-from app.schemas import ClinicianOut, EntryIn, EntryOut, Me, ShareIn, ShareOut, TelemetryEvent
+from app.models import Clinician, DiaryAccess, DiaryEntry, DiaryShare, Patient
+from app.schemas import (
+    AccessOut,
+    ClinicianOut,
+    EntryIn,
+    EntryOut,
+    Me,
+    ShareIn,
+    ShareOut,
+    TelemetryEvent,
+)
 
 router = APIRouter()
 
 Db = Annotated[Session, Depends(get_db)]
 AnyUser = Annotated[User, Depends(current_user)]
 PatientUser = Annotated[User, Depends(current_patient)]
+ClinicianUser = Annotated[User, Depends(current_clinician)]
 
 
 @router.get("/health")
@@ -98,6 +109,30 @@ def revoke_share(share_id: int, user: PatientUser, db: Db) -> DiaryShare:
     db.commit()
     db.refresh(share)
     return share
+
+
+@router.get("/clinician/patients/{patient_id}/entries", response_model=list[EntryOut])
+def clinician_entries(patient_id: int, user: ClinicianUser, db: Db) -> list[EntryOut]:
+    return read_diary(db, user.id, patient_id)
+
+
+@router.get("/access-log", response_model=list[AccessOut])
+def access_log(user: PatientUser, db: Db) -> list[AccessOut]:
+    rows = db.execute(
+        select(DiaryAccess, Clinician.name)
+        .join(Clinician, Clinician.id == DiaryAccess.clinician_id)
+        .where(DiaryAccess.patient_id == user.id)
+        .order_by(DiaryAccess.accessed_at.desc(), DiaryAccess.id.desc())
+    ).all()
+    return [
+        AccessOut(
+            clinician_id=record.clinician_id,
+            clinician_name=name,
+            accessed_at=record.accessed_at,
+            entry_ids=record.entry_ids,
+        )
+        for record, name in rows
+    ]
 
 
 @router.post("/telemetry", status_code=204)
