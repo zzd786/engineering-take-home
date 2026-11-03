@@ -1,15 +1,16 @@
 from collections.abc import Sequence
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import User, current_patient, current_user
+from app.consent import CONSENT_VERSION, consent_wording
 from app.db import get_db
 from app.metrics import APP_EVENTS
-from app.models import Clinician, DiaryEntry
-from app.schemas import ClinicianOut, EntryIn, EntryOut, Me, TelemetryEvent
+from app.models import Clinician, DiaryEntry, DiaryShare, Patient
+from app.schemas import ClinicianOut, EntryIn, EntryOut, Me, ShareIn, ShareOut, TelemetryEvent
 
 router = APIRouter()
 
@@ -50,6 +51,53 @@ def create_entry(body: EntryIn, user: PatientUser, db: Db) -> DiaryEntry:
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.post("/shares", response_model=ShareOut, status_code=201)
+def create_share(body: ShareIn, user: PatientUser, db: Db) -> DiaryShare:
+    clinician = db.get(Clinician, body.clinician_id)
+    if clinician is None:
+        raise HTTPException(422, "Unknown doctor")
+    patient = db.get(Patient, user.id)
+    share = DiaryShare(
+        patient_id=user.id,
+        **body.model_dump(),
+        timezone=patient.timezone,
+        consent_version=CONSENT_VERSION,
+        consent_text=consent_wording(
+            clinician.name, body.from_date, body.to_date, patient.timezone, body.include_notes
+        ),
+    )
+    db.add(share)
+    db.commit()
+    db.refresh(share)
+    return share
+
+
+@router.get("/shares", response_model=list[ShareOut])
+def list_shares(user: PatientUser, db: Db) -> Sequence[DiaryShare]:
+    return db.scalars(
+        select(DiaryShare)
+        .where(DiaryShare.patient_id == user.id)
+        .order_by(DiaryShare.created_at.desc(), DiaryShare.id.desc())
+    ).all()
+
+
+@router.post("/shares/{share_id}/revoke", response_model=ShareOut)
+def revoke_share(share_id: int, user: PatientUser, db: Db) -> DiaryShare:
+    # Lock the owned row so simultaneous retries preserve the first withdrawal time.
+    share = db.scalar(
+        select(DiaryShare)
+        .where(DiaryShare.id == share_id, DiaryShare.patient_id == user.id)
+        .with_for_update()
+    )
+    if share is None:
+        raise HTTPException(404, "Share not found")
+    if share.revoked_at is None:
+        share.revoked_at = db.scalar(select(func.clock_timestamp()))
+    db.commit()
+    db.refresh(share)
+    return share
 
 
 @router.post("/telemetry", status_code=204)
