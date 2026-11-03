@@ -11,7 +11,7 @@ from app.access import read_diary
 from app.auth import User, current_clinician, current_patient, current_user
 from app.consent import CONSENT_TEMPLATE, CONSENT_VERSION, consent_wording
 from app.db import get_db
-from app.metrics import APP_EVENTS
+from app.metrics import APP_EVENTS, KNOWN_EVENTS
 from app.models import Clinician, DiaryAccess, DiaryEntry, DiaryShare, Patient
 from app.preview import preview_diary
 from app.schemas import (
@@ -160,5 +160,5 @@ def access_log(user: PatientUser, db: Db) -> list[AccessOut]:
 
 @router.post("/telemetry", status_code=204)
 def telemetry(body: TelemetryEvent, _: AnyUser) -> Response:
-    APP_EVENTS.labels(body.event).inc()
+    APP_EVENTS.labels(body.event if body.event in KNOWN_EVENTS else "other").inc()
     return Response(status_code=204)

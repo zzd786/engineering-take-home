@@ -23,7 +23,7 @@ services:
     volumes:
       - ./backend:/srv
     ports:
-      - "28000:8000"
+      - "127.0.0.1:28000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -38,7 +38,7 @@ services:
       - ./app/build/web:/usr/share/nginx/html:ro
       - ./app/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
-      - "28001:80"
+      - "127.0.0.1:28001:80"
     depends_on:
       - api
 
@@ -48,10 +48,33 @@ services:
     profiles: [observe]
     volumes:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./observability/tests:/etc/prometheus/tests:ro
     ports:
-      - "28002:9090"
+      - "127.0.0.1:28002:9090"
     depends_on:
       - api
+
+  alert-receiver:
+    image: python:3.12-slim
+    profiles: [observe]
+    command: [python, /monitor/receiver.py]
+    volumes:
+      - ./observability:/monitor:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 2s
+      retries: 30
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    profiles: [observe]
+    command: [--config.file=/etc/alertmanager/alertmanager.yml]
+    volumes:
+      - ./observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    depends_on:
+      alert-receiver:
+        condition: service_healthy
 
   grafana:
     image: grafana/grafana:12.4.0
@@ -65,7 +88,7 @@ services:
       - ./observability/grafana:/etc/grafana/provisioning:ro
       - ./observability/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "28003:3000"
+      - "127.0.0.1:28003:3000"
     depends_on:
       - prometheus
 

@@ -6,14 +6,17 @@ from uuid import uuid4
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, generate_latest
 
 from app.api import router
 from app.logging_config import configure_logging, request_id_context
 from app.metrics import LATENCY, REQUESTS
+from app.product_metrics import ProductCollector
 
 configure_logging()
 logger = logging.getLogger("diary.requests")
+
+REGISTRY.register(ProductCollector())
 
 app = FastAPI(title="Symptom Diary API")
 app.include_router(router)
@@ -44,10 +47,16 @@ async def log_requests(
             )
         route = request.scope["route"].path if "route" in request.scope else "unmatched"
         elapsed = time.perf_counter() - started
-        REQUESTS.labels(request.method, route, response.status_code).inc()
-        LATENCY.labels(request.method, route).observe(elapsed)
+        method = (
+            request.method
+            if request.method
+            in {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "TRACE", "CONNECT"}
+            else "OTHER"
+        )
+        REQUESTS.labels(method, route, response.status_code).inc()
+        LATENCY.labels(method, route).observe(elapsed)
         fields = {
-            "method": request.method,
+            "method": method,
             "route": route,
             "status": response.status_code,
             "duration_ms": round(elapsed * 1000, 2),

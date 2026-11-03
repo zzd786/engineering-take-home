@@ -71,3 +71,9 @@ authentication; it is only reachable inside the cluster.
 
 **`POST /telemetry`**: counts a product event sent by the app, e.g. `{"event": "entry_created"}`.
 Event names are lowercase letters, digits and underscores, at most 64 characters. Returns `204`.
+
+Valid names beginning with a digit or underscore are accepted. For bounded monitoring labels,
+`diary_opened`, `entry_created`, `share_created` and `share_revoked` have dedicated counters;
+other valid names are accepted but grouped under `other`. Raw event names are not retained.
+See [monitoring instructions](observability/README.md) for product cohort definitions, alerts
+and local dashboard access.

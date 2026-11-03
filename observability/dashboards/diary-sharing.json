@@ -1,0 +1,102 @@
+{
+  "uid": "diary-sharing",
+  "title": "Diary sharing — adoption and safety",
+  "schemaVersion": 41,
+  "refresh": "10s",
+  "time": {"from": "now-30m", "to": "now"},
+  "tags": ["diary", "sharing"],
+  "panels": [
+    {
+      "id": 2, "type": "stat", "title": "Sharing adoption — % of diary users",
+      "description": "100 × diary users who ever created a share / patients with at least one stored diary entry. Includes withdrawn shares. No entries means no denominator, not 0% adoption. Current database snapshot; no causal claim. Review weekly.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 1, "noValue": "Unavailable — check health", "mappings": [{"type": "value", "options": {"-1": {"text": "No diary users"}}}], "min": 0, "max": 100}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "100 * diary_sharing_patients{job=\"api\"} / clamp_min(diary_logging_patients{job=\"api\"}, 1) - (diary_logging_patients{job=\"api\"} == bool 0)", "instant": true}],
+      "options": {"colorMode": "none", "graphMode": "none"}
+    },
+    {
+      "id": 3, "type": "stat", "title": "Adoption numerator / denominator",
+      "description": "Show counts alongside the percentage: diary users who shared, and all patients with entries. All-time current database counts, not new shares in the selected time range. No individual or clinician labels.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+      "targets": [
+        {"refId": "A", "expr": "diary_sharing_patients{job=\"api\"}", "instant": true, "legendFormat": "Diary users who shared"},
+        {"refId": "B", "expr": "diary_logging_patients{job=\"api\"}", "instant": true, "legendFormat": "All diary users"}
+      ],
+      "options": {"colorMode": "none", "graphMode": "none", "textMode": "value_and_name"}
+    },
+    {
+      "id": 4, "type": "stat", "title": "Continued logging — 24h to 7d",
+      "description": "Among patients who had logged at/before first sharing and have 7 complete follow-up days, fraction who created an entry 24–168 hours after that share. Uses server created_at, not backdated recorded_at. Excludes same-session logging. Includes withdrawn grants and counts each patient once. Descriptive, not a causal comparison.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+      "fieldConfig": {"defaults": {"unit": "percent", "decimals": 1, "min": 0, "max": 100, "noValue": "Unavailable — check health", "mappings": [{"type": "value", "options": {"-1": {"text": "Not enough follow-up"}}}]}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "100 * diary_sharing_followup_logged{job=\"api\"} / clamp_min(diary_sharing_followup_eligible{job=\"api\"}, 1) - (diary_sharing_followup_eligible{job=\"api\"} == bool 0)", "instant": true}],
+      "options": {"colorMode": "none", "graphMode": "none"}
+    },
+    {
+      "id": 5, "type": "stat", "title": "Follow-up numerator / mature cohort",
+      "description": "Patients logging again in the defined follow-up window / prior diary users with 7 complete days after first sharing. Zero mature patients makes the percentage undefined. Do not infer poor retention from a new demo dataset. Review weekly; investigate small samples before drawing conclusions.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 5},
+      "targets": [
+        {"refId": "A", "expr": "diary_sharing_followup_logged{job=\"api\"}", "instant": true, "legendFormat": "Logged again"},
+        {"refId": "B", "expr": "diary_sharing_followup_eligible{job=\"api\"}", "instant": true, "legendFormat": "Mature sharers"}
+      ],
+      "options": {"colorMode": "none", "graphMode": "none", "textMode": "value_and_name"}
+    },
+    {
+      "id": 6, "type": "stat", "title": "Audit writes failed — since worker start",
+      "description": "Any value above zero is critical: the API blocked disclosure. This counter latches the alert until worker restart, including a nonzero first scrape. Check database connectivity/storage/permissions and verify disclosure remains blocked. Memory-only counter: a crash before scraping can lose the signal; production needs durable independent reporting.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 5},
+      "fieldConfig": {"defaults": {"unit": "short", "noValue": "Missing signal", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "diary_audit_write_failures_total{job=\"api\"}", "instant": true}],
+      "options": {"colorMode": "background", "graphMode": "none"}
+    },
+    {
+      "id": 7, "type": "stat", "title": "API and product metrics health",
+      "description": "1 is healthy, 0 is failing. A missing metric is not success. Check the API scrape target and product query separately. Product query failures omit cohort series rather than publishing false zeros. Monitoring itself still needs an external watchdog.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 5},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "noValue": "Missing signal", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []},
+      "targets": [
+        {"refId": "A", "expr": "up{job=\"api\"}", "instant": true, "legendFormat": "API scrape"},
+        {"refId": "B", "expr": "diary_product_metrics_available{job=\"api\"}", "instant": true, "legendFormat": "Product query"}
+      ],
+      "options": {"colorMode": "value", "graphMode": "none", "textMode": "value_and_name"}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Doctor reads per minute — by HTTP status",
+      "description": "Successful, unauthorized/invalid and server-error requests are separate statuses. A 200 with no entries is deliberately privacy-preserving and is not counted as a failure. Investigate 5xx; do not infer patient existence from traffic. No traffic can legitimately produce no series.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "60 * sum by (status) (rate(http_requests_total{job=\"api\",route=\"/clinician/patients/{patient_id}/entries\"}[5m]))", "legendFormat": "HTTP {{status}}"}]
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Doctor-read p95 latency",
+      "description": "Histogram estimate of p95 for doctor reads. Compare with traffic; sparse samples are unstable. Warning: above 2 seconds for 10 minutes with at least 20 requests in the rolling five-minute window. No requests means no percentile, not zero latency.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"api\",route=\"/clinician/patients/{patient_id}/entries\"}[5m])))", "legendFormat": "p95"}]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Doctor-read server error ratio — %",
+      "description": "5xx / all doctor-read requests. Page if over 5% for 5 minutes with at least 20 requests in the rolling five-minute window. Auth failures are not server failures. Interpret with traffic and API scrape health; a ratio alone cannot detect an outage.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 18},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "targets": [{"refId": "A", "expr": "100 * ((sum(rate(http_requests_total{job=\"api\",route=\"/clinician/patients/{patient_id}/entries\",status=~\"5..\"}[5m])) or vector(0)) / sum(rate(http_requests_total{job=\"api\",route=\"/clinician/patients/{patient_id}/entries\"}[5m])))", "legendFormat": "Server failures"}]
+    },
+    {
+      "id": 11, "type": "table", "title": "Active alerts",
+      "description": "Pending and firing Prometheus alerts. An empty table is normal when no alerts are active; check API scrape health too. Check receiver logs to confirm notification delivery.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 18},
+      "targets": [{"refId": "A", "expr": "ALERTS", "instant": true, "format": "table"}]
+    }
+  ]
+}

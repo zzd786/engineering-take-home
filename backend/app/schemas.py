@@ -33,7 +33,7 @@ class ClinicianOut(BaseModel):
 
 # Validates the app event name sent to /telemetry before its counter is increased.
 class TelemetryEvent(BaseModel):
-    event: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    event: str = Field(pattern=r"^[a-z0-9_]{1,64}$")
 
 
 # Validates the chosen doctor and date range, with notes excluded unless requested.
