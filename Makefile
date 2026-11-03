@@ -1,4 +1,4 @@
-.PHONY: help doctor setup up down restart observe app test test-api test-app lint format migration logs psql reset
+.PHONY: help doctor setup up down restart observe app test test-api test-app test-observe lint format migration logs psql reset
 
 COMPOSE := docker compose
 # Tool containers run as you, so files they write into the repo stay yours (matters on Linux).
@@ -47,7 +47,7 @@ observe: ## Start Prometheus (localhost:28002) and Grafana (localhost:28003)
 app: ## Rebuild the Flutter web app (reload the browser afterwards)
 	$(call flutter,flutter build web --no-web-resources-cdn)
 
-test: test-api test-app ## Run all tests
+test: test-api test-app test-observe ## Run application and monitoring unit/rule tests
 
 test-api: ## Run backend tests (uses a separate test database)
 	$(API) $(TEST_DB) api pytest
@@ -55,8 +55,13 @@ test-api: ## Run backend tests (uses a separate test database)
 test-app: ## Run Flutter tests
 	$(call flutter,flutter test)
 
-lint: ## Lint backend and app
+test-observe: ## Test alert rules and the privacy-safe receiver (no live faults)
+	$(COMPOSE) run --rm --no-deps --entrypoint /bin/promtool prometheus test rules /etc/prometheus/tests/alerts.test.yml /etc/prometheus/tests/operations.test.yml
+	$(API) --no-deps -v $(CURDIR)/observability:/monitor:ro api python -m unittest discover -s /monitor/tests
+
+lint: ## Lint backend, monitoring scripts and app
 	$(API) --no-deps api ruff check .
+	$(API) --no-deps -v $(CURDIR)/observability:/monitor:ro api ruff check --config /srv/pyproject.toml /monitor
 	$(call flutter,flutter analyze)
 
 format: ## Format backend and app code

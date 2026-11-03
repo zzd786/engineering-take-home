@@ -1,8 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
+# Validates a new diary entry, including its timezone-aware timestamp and mood range.
 class EntryIn(BaseModel):
     recorded_at: AwareDatetime
     mood: int = Field(ge=1, le=5)
@@ -10,6 +11,7 @@ class EntryIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+# Keeps diary entry responses limited to the five fields supported by older apps.
 class EntryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -20,6 +22,7 @@ class EntryOut(BaseModel):
     note: str | None
 
 
+# Returns a doctor's ID, name and practice so patients can choose a recipient.
 class ClinicianOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,10 +31,47 @@ class ClinicianOut(BaseModel):
     practice: str
 
 
+# Validates the app event name sent to /telemetry before its counter is increased.
 class TelemetryEvent(BaseModel):
-    event: str = Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    event: str = Field(pattern=r"^[a-z0-9_]{1,64}$")
 
 
+# Validates the chosen doctor and date range, with notes excluded unless requested.
+class ShareIn(BaseModel):
+    clinician_id: int = Field(gt=0)
+    from_date: date
+    to_date: date
+    include_notes: bool = False
+
+    @model_validator(mode="after")
+    def check_date_order(self) -> "ShareIn":
+        if self.from_date > self.to_date:
+            raise ValueError("from_date must not be after to_date")
+        return self
+
+
+# Returns the share's public details and timestamps without internal consent evidence.
+class ShareOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    clinician_id: int
+    from_date: date
+    to_date: date
+    include_notes: bool
+    created_at: datetime
+    revoked_at: datetime | None
+
+
+# Shows the patient who read their diary, when, and which entries were returned.
+class AccessOut(BaseModel):
+    clinician_id: int
+    clinician_name: str
+    accessed_at: datetime
+    entry_ids: list[int]
+
+
+# Keeps /me limited to the account role, ID and name expected by older apps.
 class Me(BaseModel):
     role: str
     id: int

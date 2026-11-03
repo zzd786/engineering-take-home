@@ -38,6 +38,53 @@ class ApiClient {
     return DiaryEntry.fromJson(_decode(response, 201));
   }
 
+  Future<List<T>> _list<T>(String path, T Function(Map<String, dynamic>) parse) async {
+    final response = await _client.get(baseUrl.resolve(path), headers: _headers);
+    final List<dynamic> items = _decode(response, 200);
+    return items.map((item) => parse(item as Map<String, dynamic>)).toList();
+  }
+
+  Future<List<Doctor>> listDoctors() => _list('clinicians', Doctor.fromJson);
+  Future<List<DiaryShare>> listShares() => _list('shares', DiaryShare.fromJson);
+  Future<List<DiaryRead>> listReads() => _list('access-log', DiaryRead.fromJson);
+
+  Future<SharingContext> sharingContext() async {
+    final response = await _client.get(baseUrl.resolve('sharing-context'), headers: _headers);
+    return SharingContext.fromJson(_decode(response, 200));
+  }
+
+  Future<SharingPreview> previewShare(int doctorId, DateTime from, DateTime to) async {
+    final response = await _client.post(
+      baseUrl.resolve('sharing-preview'),
+      headers: _headers,
+      body: jsonEncode({
+        'clinician_id': doctorId,
+        'from_date': calendarDate(from),
+        'to_date': calendarDate(to),
+      }),
+    );
+    return SharingPreview.fromJson(_decode(response, 200));
+  }
+
+  Future<DiaryShare> createShare(int doctorId, DateTime from, DateTime to, bool notes) async {
+    final response = await _client.post(
+      baseUrl.resolve('shares'),
+      headers: _headers,
+      body: jsonEncode({
+        'clinician_id': doctorId,
+        'from_date': calendarDate(from),
+        'to_date': calendarDate(to),
+        'include_notes': notes,
+      }),
+    );
+    return DiaryShare.fromJson(_decode(response, 201));
+  }
+
+  Future<DiaryShare> revokeShare(int id) async {
+    final response = await _client.post(baseUrl.resolve('shares/$id/revoke'), headers: _headers);
+    return DiaryShare.fromJson(_decode(response, 200));
+  }
+
   /// Counts a product event such as `entry_created` (only the name is sent). Failures are ignored:
   /// telemetry must never get in the patient's way.
   Future<void> track(String event) async {

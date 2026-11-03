@@ -1,0 +1,62 @@
+rule_files: [/etc/prometheus/alerts.yml]
+evaluation_interval: 1m
+tests:
+  - name: sparse-failures-do-not-page-on-percentage-alone
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{route="/clinician/patients/{patient_id}/entries",status="503"}'
+        values: '0+1x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: DiaryDoctorReadErrors
+        exp_alerts: []
+  - name: sustained-errors-with-volume-page
+    interval: 1m
+    input_series:
+      - series: 'http_requests_total{route="/clinician/patients/{patient_id}/entries",status="200"}'
+        values: '0+19x20'
+      - series: 'http_requests_total{route="/clinician/patients/{patient_id}/entries",status="503"}'
+        values: '0+2x20'
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: DiaryDoctorReadErrors
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: Doctor reads have sustained server failures above five percent.
+              action: Check API health, request IDs and database health. Empty 200 responses are not failures.
+  - name: slow-doctor-reads-need-sustained-latency-and-volume
+    interval: 1m
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{route="/clinician/patients/{patient_id}/entries",le="2"}'
+        values: '0+10x20'
+      - series: 'http_request_duration_seconds_bucket{route="/clinician/patients/{patient_id}/entries",le="4"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_bucket{route="/clinician/patients/{patient_id}/entries",le="+Inf"}'
+        values: '0+20x20'
+      - series: 'http_request_duration_seconds_count{route="/clinician/patients/{patient_id}/entries"}'
+        values: '0+20x20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DiaryDoctorReadSlow
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: DiaryDoctorReadSlow
+        exp_alerts:
+          - exp_labels: {severity: warning}
+            exp_annotations:
+              summary: Doctor-read p95 exceeds two seconds with enough requests.
+              action: Check database latency, API saturation and diary sizes. Review promptly during clinic hours.
+  - name: outage-is-not-no-traffic
+    interval: 1m
+    input_series:
+      - series: 'up{job="api"}'
+        values: '0x5'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: DiaryApiUnavailable
+        exp_alerts:
+          - exp_labels: {severity: critical, job: api}
+            exp_annotations:
+              summary: Prometheus cannot scrape the diary API.
+              action: Check the API process, database and scrape network. Do not interpret missing traffic as healthy.

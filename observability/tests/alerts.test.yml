@@ -1,0 +1,34 @@
+rule_files:
+  - /etc/prometheus/alerts.yml
+evaluation_interval: 1m
+tests:
+  - name: audit-failure-fires-and-reset-resolves
+    interval: 1m
+    input_series:
+      - series: 'diary_audit_write_failures_total{job="api"}'
+        values: '0 1 1 0'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: DiaryAuditWriteFailed
+        exp_alerts: []
+      - eval_time: 1m
+        alertname: DiaryAuditWriteFailed
+        exp_alerts: &audit
+          - exp_labels:
+              severity: critical
+              job: api
+            exp_annotations:
+              summary: Diary disclosure was blocked because its access record could not be saved.
+              action: Check database connectivity, storage and permissions. Confirm reads remain blocked. Investigate before restarting the worker; the counter is latched until restart.
+      - eval_time: 3m
+        alertname: DiaryAuditWriteFailed
+        exp_alerts: []
+  - name: first-scrape-already-has-a-failure
+    interval: 1m
+    input_series:
+      - series: 'diary_audit_write_failures_total{job="api"}'
+        values: '1 1'
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: DiaryAuditWriteFailed
+        exp_alerts: *audit

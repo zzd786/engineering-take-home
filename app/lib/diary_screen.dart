@@ -4,6 +4,7 @@ import 'add_entry_screen.dart';
 import 'api.dart';
 import 'format.dart';
 import 'models.dart';
+import 'sharing_screen.dart';
 import 'theme.dart';
 import 'widgets.dart';
 
@@ -53,6 +54,25 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 children: [
                   ContentColumn(
                     child: _Header(today: today, entries: entries ?? const []),
+                  ),
+                  ContentColumn(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: Space.m),
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(52),
+                          visualDensity: VisualDensity.standard,
+                          backgroundColor: AppColors.surface,
+                          side: const BorderSide(color: AppColors.primary),
+                          shape: const RoundedRectangleBorder(borderRadius: Radii.control),
+                        ),
+                        onPressed: () => Navigator.of(
+                          context,
+                        ).push(MaterialPageRoute(builder: (_) => SharingScreen(api: widget.api))),
+                        icon: const Icon(Icons.share_outlined),
+                        label: const Text('Share diary'),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: Space.l),
                   if (snapshot.hasError)
