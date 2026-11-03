@@ -31,6 +31,27 @@ to `false`. Returns `201` with the share:
   "accessed_at": "2026-10-08T10:03:00Z", "entry_ids": [3, 5]}]
 ```
 
+### Patient app support
+
+**`GET /sharing-context`**: the authenticated patient's timezone and current consent
+wording for the sharing confirmation screen. Returns `200` with `timezone`,
+`today` (YYYY-MM-DD in the saved patient timezone), `consent_version`, and `consent_template`. The template uses `{doctor}`, `{from_date}`,
+`{to_date}`, `{timezone}`, and `{notes}` placeholders. Notes wording is either
+`Notes are included.` or `My notes stay private.`. Missing/invalid auth returns `401`;
+clinician accounts receive `403`. This additive endpoint leaves `/me` and `/entries`
+unchanged. The server still selects and stores the consent version when creating a share.
+
+**`POST /sharing-preview`**: authenticated patient-only, read-only preview. Accepts the
+same selection as POST /shares. Returns `200` with `entry_count`, `note_entry_count`
+(entries with nonblank notes), `overlap_count`, and `overlap_includes_notes`.
+Counts use the same saved-timezone/legacy date rules as doctor reads. Overlap warnings
+consider active permissions for the same doctor, including calendar-day and real-time
+intersections across timezone changes; they are conservative, not counts of disclosed entries.
+The preview does not create a share or a doctor access record. Missing auth returns `401`,
+clinicians receive `403`, and invalid selections/unknown doctors return `422`.
+Counts describe current entries, not a fixed export or a reservation. New entries within the
+selected dates can also be shared; consent is still checked on every doctor read.
+
 ## Clinician
 
 **`GET /clinician/patients/{patient_id}/entries`**: the patient's entries this doctor may see,

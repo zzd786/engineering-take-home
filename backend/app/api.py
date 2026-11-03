@@ -1,5 +1,7 @@
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Annotated
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import func, select
@@ -7,10 +9,11 @@ from sqlalchemy.orm import Session
 
 from app.access import read_diary
 from app.auth import User, current_clinician, current_patient, current_user
-from app.consent import CONSENT_VERSION, consent_wording
+from app.consent import CONSENT_TEMPLATE, CONSENT_VERSION, consent_wording
 from app.db import get_db
 from app.metrics import APP_EVENTS
 from app.models import Clinician, DiaryAccess, DiaryEntry, DiaryShare, Patient
+from app.preview import preview_diary
 from app.schemas import (
     AccessOut,
     ClinicianOut,
@@ -62,6 +65,26 @@ def create_entry(body: EntryIn, user: PatientUser, db: Db) -> DiaryEntry:
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.get("/sharing-context")
+def sharing_context(user: PatientUser, db: Db) -> dict[str, str]:
+    patient = db.get(Patient, user.id)
+    return {
+        "timezone": patient.timezone,
+        "today": datetime.now(ZoneInfo(patient.timezone)).date().isoformat(),
+        "consent_version": CONSENT_VERSION,
+        "consent_template": CONSENT_TEMPLATE,
+    }
+
+
+@router.post("/sharing-preview")
+def sharing_preview(body: ShareIn, user: PatientUser, db: Db) -> dict[str, int | bool]:
+    if db.get(Clinician, body.clinician_id) is None:
+        raise HTTPException(422, "Unknown doctor")
+    patient = db.get(Patient, user.id)
+    selection = DiaryShare(patient_id=user.id, timezone=patient.timezone, **body.model_dump())
+    return preview_diary(db, selection)
 
 
 @router.post("/shares", response_model=ShareOut, status_code=201)

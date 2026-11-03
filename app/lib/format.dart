@@ -24,6 +24,9 @@ String formatTime(DateTime value) {
   return '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}';
 }
 
+/// A calendar date with no device-timezone conversion: "13 October 2026".
+String formatCalendarDate(DateTime day) => '${day.day} ${_months[day.month - 1]} ${day.year}';
+
 /// "Tuesday, 13 October"
 String formatLongDate(DateTime day) =>
     '${_weekdays[day.weekday - 1]}, ${day.day} ${_months[day.month - 1]}';

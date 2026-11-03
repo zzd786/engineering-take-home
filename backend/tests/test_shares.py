@@ -42,12 +42,12 @@ def test_save_consent_evidence_and_timezone(client: TestClient) -> None:
         assert share.include_notes is True
         assert share.patient_id == 1
         assert share.timezone == "Europe/Berlin"
-        assert share.consent_version == "diary-sharing-v1"
+        assert share.consent_version == "diary-sharing-v2"
         assert "Dr. Lena Hofmann" in share.consent_text
         assert "2026-10-01 through 2026-10-07" in share.consent_text
         assert "Europe/Berlin" in share.consent_text
         assert "Notes are included." in share.consent_text
-        assert "revoke" in share.consent_text
+        assert "I can stop sharing at any time." in share.consent_text
         db.get(Patient, 1).timezone = "Europe/Lisbon"
         db.commit()
         db.refresh(share)
@@ -153,7 +153,7 @@ def test_client_cannot_choose_owner_or_consent_evidence(client: TestClient) -> N
         share = db.get(DiaryShare, response.json()["id"])
         assert share.patient_id == 1
         assert share.timezone == "Europe/Berlin"
-        assert share.consent_version == "diary-sharing-v1"
+        assert share.consent_version == "diary-sharing-v2"
         assert share.consent_text != "fake"
         assert share.revoked_at is None
     assert client.get("/shares", headers=OTHER).json() == []

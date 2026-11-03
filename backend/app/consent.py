@@ -2,11 +2,12 @@
 
 from datetime import date
 
-CONSENT_VERSION = "diary-sharing-v1"
+CONSENT_VERSION = "diary-sharing-v2"
 CONSENT_TEMPLATE = (
-    "I agree to share my mood and symptoms with {doctor} for {from_date} through {to_date}, "
-    "inclusive, in {timezone}. {notes} I can revoke access at any time. "
-    "I can see who read my diary and when."
+    "I agree to share my mood and symptoms with {doctor}. "
+    "The dates are {from_date} through {to_date}, including both days, in {timezone}. "
+    "{notes} I can stop sharing at any time. "
+    "I can see which doctor opened my diary and when."
 )
 
 
